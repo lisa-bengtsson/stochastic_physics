@@ -159,12 +159,12 @@ if(kstep==0) then
     ! overflow, do wrap around explicitly.
     count4 = mod(mpp_pe() + iseed_ca + 2147483648, 4294967296) - 2147483648 
   endif
+  call random_setseed(count4,rstate)
 endif !kstep == 0
 
-  call random_setseed(count4,rstate)
   do nf=1,nca
   !Set seed (to be different) on all tasks. Save random state.
-    call random_number(noise1D,rstate)
+    call random_number(noise1D)
   !Put on 2D:
     do j=1,nyc
       do i=1,nxc

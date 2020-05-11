@@ -5,7 +5,7 @@ use standalone_stochy_module
 use fv_mp_mod,           only: mp_start, domain_decomp
 use atmosphere_stub_mod, only: Atm,atmosphere_init_stub
 use fv_arrays_mod,       only: fv_atmos_type
-use fv_control_mod,      only: setup_pointers
+use fv_control_stub_mod,      only: setup_pointers
 !use mpp_domains
 use mpp_mod,             only: mpp_set_current_pelist,mpp_get_current_pelist,mpp_init,mpp_pe,mpp_npes ,mpp_declare_pelist
 use mpp_domains_mod,     only: mpp_broadcast_domain,MPP_DOMAIN_TIME,mpp_domains_init ,mpp_domains_set_stack_size
@@ -46,11 +46,11 @@ type(grid_box_type)           :: grid_box
 !type(time_type)               :: Time_step          ! atmospheric time step.
 !type(time_type)               :: Time_init          ! reference time.
 !---cellular automata control parameters
-integer              :: nca             !< number of independent cellular automata
-integer              :: nlives          !< cellular automata lifetime
-integer              :: ncells          !< cellular automata finer grid
+integer              :: nca_g           !< number of independent cellular automata
+integer              :: nlives_g        !< cellular automata lifetime
+integer              :: ncells_g        !< cellular automata finer grid
 real                 :: nfracseed       !< cellular automata seed probability
-integer              :: nseed           !< cellular automata seed frequency
+integer              :: nseed_g         !< cellular automata seed frequency
 logical              :: do_ca           !< cellular automata main switch
 logical              :: ca_sgs          !< switch for sgs ca
 logical              :: ca_global       !< switch for global ca
@@ -62,19 +62,21 @@ logical              :: pert_flux
 logical              :: pert_trigger
 integer              :: iseed_ca        !< seed for random number generation in ca scheme
 integer              :: nspinup         !< number of iterations to spin up the ca
-integer              :: ca_amplitude
+real                 :: ca_amplitude
+logical              :: ca_trigger      !< logical switch for ca on trigger
+integer              :: nsmooth
 real                 :: nthresh         !< threshold used for perturbed vertical velocity
 
-NAMELIST /gfs_physics_nml/ nca, ncells, nlives, nfracseed,nseed, nthresh, &
+NAMELIST /gfs_physics_nml/ nca_g, ncells_g, nlives_g, nfracseed,nseed_g, nthresh, &
          do_ca,ca_sgs, ca_global,iseed_ca,ca_smooth,isppt_pbl,isppt_shal,isppt_deep,nspinup,&
-         pert_trigger,pert_flux,ca_amplitude
+         pert_trigger,pert_flux,ca_amplitude,ca_trigger,nsmooth
 
 ! default values
-nca            = 1
-ncells         = 5
-nlives         = 10
+nca_g          = 1
+ncells_g       = 5
+nlives_g       = 10
 nfracseed      = 0.5
-nseed          = 100000
+nseed_g        = 100000
 iseed_ca       = 0
 nspinup        = 1
 do_ca          = .false.
@@ -93,6 +95,7 @@ nthresh        = 0.0
 open (unit=565, file='input.nml', READONLY, status='OLD', iostat=ierr)
 read(565,gfs_physics_nml)
 close(565)
+print*,'read namelist, ca_amplitude=',ca_amplitude
 ! define stuff
 ng=3  ! ghost region
 undef=9.99e+20
@@ -123,11 +126,11 @@ blksz=nx
 nthreads = omp_get_num_threads()
 Model%me=my_id
 
-Model%nca            = nca
-Model%ncells         = ncells
-Model%nlives         = nlives
+Model%nca_g          = nca_g
+Model%ncells_g       = ncells_g
+Model%nlives_g       = nlives_g
 Model%nfracseed      = nfracseed
-Model%nseed          = nseed  
+Model%nseed_g        = nseed_g
 Model%iseed_ca       = iseed_ca
 Model%nspinup        = nspinup
 Model%do_ca          = do_ca
@@ -234,30 +237,33 @@ DO i =1,nblks
    allocate(Statein(i)%prsl(blksz,nlevs))
 ENDDO
 ct=1
-do i=1,600
+do i=1,800
    ts=i/8.0  ! hard coded to write out hourly based on a 450 second time-step
    call cellular_automata_global(i-1, Statein, Coupling, Diag, &
-                          nblks, Model%levs, Model%nca, Model%ncells,          &
-                          Model%nlives, Model%nfracseed, Model%nseed,                    &
+                          nblks, Model%levs, Model%nca_g, Model%ncells_g,          &
+                          Model%nlives_g, Model%nfracseed, Model%nseed_g,                    &
                           Model%nthresh, Model%ca_global, Model%ca_sgs,                  &
                           Model%iseed_ca, Model%ca_smooth, Model%nspinup,                &
-                          blksz)
+                          blksz,nsmooth,ca_amplitude)
    if (mod(i,8).EQ.0) then
       do j=1,ny
          workg(:,j)=Diag(j)%ca1(:)   
       enddo
+!   if (my_id.EQ.0) write(6,fmt='(a,i5,f6.3)') 'ca 1=',i,sum(workg)/float(nx*ny)
       ierr=NF90_PUT_VAR(ncid,ca1_id,workg,(/1,1,ct/))
       do j=1,ny
          workg(:,j)=Diag(j)%ca2(:)   
       enddo
+!   if (my_id.EQ.0) write(6,fmt='(a,i5,f6.3)') 'ca 2=',i,sum(workg)/float(nx*ny)
       ierr=NF90_PUT_VAR(ncid,ca2_id,workg,(/1,1,ct/))
       do j=1,ny
          workg(:,j)=Diag(j)%ca3(:)   
       enddo
+!   if (my_id.EQ.0) write(6,fmt='(a,i5,f6.3)') 'ca 3=',i,sum(workg)/float(nx*ny)
       ierr=NF90_PUT_VAR(ncid,ca3_id,workg,(/1,1,ct/))
       ierr=NF90_PUT_VAR(ncid,time_var_id,ts,(/ct/))
       ct=ct+1
-   if (my_id.EQ.0) write(6,fmt='(a,i5,4f6.3)') 'ca=',i,Diag(1)%ca1(1:4)
+   !if (my_id.EQ.0) write(6,fmt='(a,i5,4f6.3)') 'ca=',i,Diag(1)%ca1(14),Diag(1)%ca2(14),Diag(1)%ca3(14)
    endif
 enddo
 !close(fid)

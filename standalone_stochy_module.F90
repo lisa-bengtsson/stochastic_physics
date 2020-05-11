@@ -29,11 +29,11 @@ type GFS_control_type
    character(len=256),allocatable :: input_nml_file(:) !< character string containing full namelist
    real(kind=kind_phys) ::  pertz0(5),pertzt(5),pertshc(5),pertlai(5),pertvegf(5),pertalb(5)
  !---cellular automata control parameters
-    integer              :: nca             !< number of independent cellular automata
-    integer              :: nlives          !< cellular automata lifetime
-    integer              :: ncells          !< cellular automata finer grid
+    integer              :: nca_g             !< number of independent cellular automata
+    integer              :: nlives_g          !< cellular automata lifetime
+    integer              :: ncells_g          !< cellular automata finer grid
     real(kind=kind_phys) :: nfracseed       !< cellular automata seed probability
-    integer              :: nseed           !< cellular automata seed frequency
+    integer              :: nseed_g           !< cellular automata seed frequency
     logical              :: do_ca           !< cellular automata main switch
     logical              :: ca_sgs          !< switch for sgs ca
     logical              :: ca_global       !< switch for global ca

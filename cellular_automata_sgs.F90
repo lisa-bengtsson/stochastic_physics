@@ -242,9 +242,9 @@ if(kstep==2) then
     ! don't rely on compiler to truncate integer(8) to integer(4) on
     ! overflow, do wrap around explicitly.
     count4 = mod(mpp_pe() + iseed_ca + 2147483648, 4294967296) - 2147483648 
+    call random_setseed(count4)
   endif
 
-  call random_setseed(count4)
 
   do nf=1,nca
     call random_number(noise1D)

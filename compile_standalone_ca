@@ -9,7 +9,7 @@ if [ $compile_all -eq 1 ];then
    mpif90 -C -traceback -I../FV3/atmos_cubed_sphere -I../FMS/include -I../FMS/fv3gfs -c fv_control_stub.F90
    mpif90 -C -traceback -I../FV3/atmos_cubed_sphere -I../FMS/include -I../FMS/fv3gfs -c atmosphere_stub.F90
    mpif90 -C -traceback -c -real-size 64 standalone_stochy_module.F90
-   mpif90 -C -traceback -I. -real-size 64 -c plumes.F90
+   mpif90 -C -traceback -I. -real-size 64 -c plumes.f90
    mpif90 -DSTOCHY_UNIT_TEST -real-size 64 -C -traceback -I../FMS/fv3gfs -I../FMS/FMS_INSTALL -I../FV3/atmos_cubed_sphere -c update_ca.F90
    mpif90 -DSTOCHY_UNIT_TEST -real-size 64 -C -traceback -I../FMS/fv3gfs -I../FMS/FMS_INSTALL -I../FV3/atmos_cubed_sphere -c cellular_automata_global.F90
    ar rv libcellular_automata.a *.o
